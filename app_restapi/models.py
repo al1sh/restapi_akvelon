@@ -41,11 +41,16 @@ class Tasks(db.Model):
             'name': self.name,
             'description': self.description,
             'status': self.status,
-            'project': self.project.name
+            'project':
+                {
+                    'project_id': self.project_id,
+                    'project_name': self.project.name
+                }
+
         }
         if self.employee:
-            data['employee'] = self.employee.name
-
+            data['employee'] = {'employee_id': self.employee_id,
+                                'employee_name':  self.employee.name}
         return data
 
     def from_dict(self, data):

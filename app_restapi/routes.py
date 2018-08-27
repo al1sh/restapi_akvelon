@@ -44,10 +44,10 @@ def get_tasks():
 
     if request.method == "DELETE":
         data = request.get_json() or {}
-        if 'name' not in data:
-            return bad_request('must include task name')
+        if 'id' not in data:
+            return bad_request('must include task ID')
 
-        existing_task = Tasks.query.filter_by(name=data['name']).first()
+        existing_task = Tasks.query.filter_by(id=data['id']).first()
         if not existing_task:
             return bad_request("task doesn't exist")
 
@@ -67,19 +67,19 @@ def get_tasks():
         if not t:
             return bad_request("no such ID")
 
-        if 'project' in data:
-            existing_project = Projects.query.filter_by(name=data['project']).first()
+        if 'project_id' in data:
+            existing_project = Projects.query.filter_by(id=data['project_id']).first()
 
             if not existing_project:
-                return bad_request("Project does not exist")
+                return bad_request("Project with such ID does not exist")
             else:
                 t.project = existing_project
 
-        if 'employee' in data:
-            existing_employee = Employees.query.filter_by(name=data['employee']).first()
+        if 'employee_id' in data:
+            existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
-                return bad_request("Employee does not exist")
+                return bad_request("Employee with such ID does not exist")
             else:
                 t.employee = existing_employee
 
@@ -120,10 +120,10 @@ def get_employees():
 
     if request.method == "DELETE":
         data = request.get_json() or {}
-        if 'name' not in data:
-            return bad_request('must include employee name')
+        if 'id' not in data:
+            return bad_request('must include employee ID')
 
-        existing_employee = Employees.query.filter_by(name=data['name']).first()
+        existing_employee = Employees.query.filter_by(id=data['id']).first()
         if not existing_employee:
             return bad_request("employee doesn't exist")
 
@@ -182,12 +182,12 @@ def get_projects():
 
     if request.method == "DELETE":
         data = request.get_json() or {}
-        if 'name' not in data:
+        if 'id' not in data:
             return bad_request('must include project name')
 
-        existing_project = Projects.query.filter_by(name=data['name']).first()
+        existing_project = Projects.query.filter_by(id=data['id']).first()
         if not existing_project:
-            return bad_request("project doesn't exist")
+            return bad_request("project with such ID does not exist")
 
         response = jsonify(existing_project.to_dict())
         db.session.delete(existing_project)
