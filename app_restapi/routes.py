@@ -14,20 +14,20 @@ def get_tasks():
 
     if request.method == "POST":
         data = request.get_json() or {}
-        if 'name' not in data or "project" not in data:
-            return bad_request('must include name and project field')
+        if 'name' not in data or "project_id" not in data:
+            return bad_request('must include name and project_id field')
 
-        existing_project = Projects.query.filter_by(name=data['project']).first()
+        existing_project = Projects.query.filter_by(id=data['project_id']).first()
 
         if not existing_project:
-            return bad_request("Project does not exist")
+            return bad_request("Project with such ID not exist")
 
         t = Tasks()
-        if 'employee' in data:
-            existing_employee = Employees.query.filter_by(name=data['employee']).first()
+        if 'employee_id' in data:
+            existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
-                return bad_request("Employee does not exist")
+                return bad_request("Employee with such ID does not exist")
 
             t = Tasks(employee=existing_employee, project=existing_project)
 
@@ -92,6 +92,7 @@ def get_tasks():
         return response
 
 #       *** Employees ***
+
 
 @app.route('/employees', methods=["GET", "POST", "PUT", "DELETE"])
 def get_employees():
