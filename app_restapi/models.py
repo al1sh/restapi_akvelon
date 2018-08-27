@@ -35,7 +35,7 @@ class Tasks(db.Model):
     def __repr__(self):
         return '<Task {}>'.format(self.name)
 
-    def to_dict(self, with_project=False):
+    def to_dict(self):
         data = {
             'id': self.id,
             'name': self.name,
@@ -47,6 +47,11 @@ class Tasks(db.Model):
             data['employee'] = self.employee.name
 
         return data
+
+    def from_dict(self, data):
+        for field in ['name', 'description', 'status']:
+            if field in data:
+                setattr(self, field, data[field])
 
 
 class Projects(db.Model):
@@ -66,8 +71,12 @@ class Projects(db.Model):
             'code': self.code,
             'tasks': [t.to_dict() for t in self.tasks]
         }
-
         return data
+
+    def from_dict(self, data):
+        for field in ['name', 'code']:
+            if field in data:
+                setattr(self, field, data[field])
 
 
 class Employees(db.Model):
@@ -94,7 +103,6 @@ class Employees(db.Model):
         for field in ['name', 'gender', 'date_of_birth', 'start_date']:
             if field in data:
                 setattr(self, field, data[field])
-
 
     def __repr__(self):
         return '<Employee {}>'.format(self.name)
