@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../")
+
 from app_restapi import app, db
 from app_restapi.models import Tasks, Employees, Projects
 import unittest

@@ -2,8 +2,7 @@
 
 #	1. Выполнить в корневой папке проекта:
 ```
-		Для Unix систем: 		source venv/bin/activate 
-		Для Windows:				.\venv\Scripts\activate
+		Для Unix систем: 		source venv/bin/activate
 ```	
 #	2. Выполнить в корневой папке проекта:
 ```
