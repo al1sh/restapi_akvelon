@@ -1,5 +1,5 @@
 from app_restapi import app, db
-from flask import jsonify,request
+from flask import jsonify, request
 from app_restapi.models import Tasks, Employees, Projects
 from app_restapi.errors import bad_request
 
