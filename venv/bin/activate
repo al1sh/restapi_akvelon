@@ -37,7 +37,8 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/home/user/PycharmProjects/restapi/venv"
+VIRTUAL_ENV=$(pwd)/venv
+echo $VIRTUAL_ENV
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
