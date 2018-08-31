@@ -1,16 +1,19 @@
 from app_restapi import app, db
 from flask import jsonify, request
 from app_restapi.models import Tasks, Employees, Projects
-from app_restapi.errors import bad_request
+from app_restapi.errors import *
 
-#       *** Tasks ***
+
+#   ****** /tasks/* routes ******
 
 
 @app.route('/tasks', methods=["GET", "POST", "PUT", "DELETE"])
 def get_tasks():
     if request.method == "GET":
         tasks = Tasks.query.all()
-        return jsonify([task.to_dict() for task in tasks])
+        response = jsonify([task.to_dict() for task in tasks])
+        response.status_code = 200
+        return response
 
     if request.method == "POST":
         data = request.get_json() or {}
@@ -20,14 +23,14 @@ def get_tasks():
         existing_project = Projects.query.filter_by(id=data['project_id']).first()
 
         if not existing_project:
-            return bad_request("Project with such ID not exist")
+            return not_found("Project with such ID not exist")
 
         t = Tasks()
         if 'employee_id' in data:
             existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
-                return bad_request("Employee with such ID does not exist")
+                return not_found("Employee with such ID does not exist")
 
             t = Tasks(employee=existing_employee, project=existing_project)
 
@@ -37,6 +40,7 @@ def get_tasks():
         t.from_dict(data)
         db.session.add(t)
         db.session.commit()
+
         response = jsonify(t.to_dict())
         response.status_code = 201
 
@@ -49,13 +53,14 @@ def get_tasks():
 
         existing_task = Tasks.query.filter_by(id=data['id']).first()
         if not existing_task:
-            return bad_request("task doesn't exist")
+            return not_found("task ID doesn't exist")
 
-        response = jsonify(existing_task.to_dict())
+        response = jsonify()
+        response.status_code = 204
+
         db.session.delete(existing_task)
         db.session.commit()
 
-        response.status_code = 201
         return response
 
     if request.method == "PUT":
@@ -65,13 +70,13 @@ def get_tasks():
 
         t = Tasks.query.filter_by(id=data['id']).first()
         if not t:
-            return bad_request("no such ID")
+            return not_found("no such task with such ID")
 
         if 'project_id' in data:
             existing_project = Projects.query.filter_by(id=data['project_id']).first()
 
             if not existing_project:
-                return bad_request("Project with such ID does not exist")
+                return not_found("Project with such ID does not exist")
             else:
                 t.project = existing_project
 
@@ -79,41 +84,41 @@ def get_tasks():
             existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
-                return bad_request("Employee with such ID does not exist")
+                return not_found("Employee with such ID does not exist")
             else:
                 t.employee = existing_employee
 
         t.from_dict(data)
-
         db.session.commit()
-        response = jsonify(t.to_dict())
-        response.status_code = 201
+
+        response = jsonify()
+        response.status_code = 204
 
         return response
 
-#       *** Employees ***
+#   ******* /employees/* routes *******
 
 
 @app.route('/employees', methods=["GET", "POST", "PUT", "DELETE"])
 def get_employees():
     if request.method == "GET":
         employees = Employees.query.all()
-        return jsonify([emp.to_dict() for emp in employees])
+
+        response = jsonify([emp.to_dict() for emp in employees])
+        response.status_code = 200
+        return response
 
     if request.method == 'POST':
         data = request.get_json() or {}
         if 'name' not in data:
             return bad_request('must include name field')
-        
-        # if User.query.filter_by(username=data['username']).first():
-        #     return bad_request('please use a different username')
-        # if User.query.filter_by(email=data['email']).first():
-        #     return bad_request('please use a different email address')
 
         emp = Employees()
         emp.from_dict(data)
+
         db.session.add(emp)
         db.session.commit()
+
         response = jsonify(emp.to_dict())
         response.status_code = 201
 
@@ -126,13 +131,13 @@ def get_employees():
 
         existing_employee = Employees.query.filter_by(id=data['id']).first()
         if not existing_employee:
-            return bad_request("employee doesn't exist")
+            return not_found("employee with such ID doesn't exist")
 
-        response = jsonify(existing_employee.to_dict())
         db.session.delete(existing_employee)
         db.session.commit()
 
-        response.status_code = 201
+        response = jsonify()
+        response.status_code = 204
         return response
 
     if request.method == "PUT":
@@ -142,24 +147,26 @@ def get_employees():
 
         selected_employee = Employees.query.filter_by(id=data['id']).first()
         if not selected_employee:
-            return bad_request("no such ID")
+            return not_found("no employee with such ID")
 
         selected_employee.from_dict(data)
-
         db.session.commit()
-        response = jsonify(selected_employee.to_dict())
-        response.status_code = 201
+
+        response = jsonify()
+        response.status_code = 204
 
         return response
 
 
-#       *** Projects ***
+#   ****** /projects/* routes ******
 
 @app.route('/projects', methods=["GET", "POST", "PUT", "DELETE"])
 def get_projects():
     if request.method == "GET":
         projects = Projects.query.all()
-        return jsonify([proj.to_dict() for proj in projects])
+        response = jsonify([proj.to_dict() for proj in projects])
+        response.status_code = 200
+        return response
 
     if request.method == 'POST':
         data = request.get_json(force=True) or {}
@@ -167,15 +174,12 @@ def get_projects():
         if 'name' not in data:
             return bad_request('must include name field')
 
-        # if User.query.filter_by(username=data['username']).first():
-        #     return bad_request('please use a different username')
-        # if User.query.filter_by(email=data['email']).first():
-        #     return bad_request('please use a different email address')
-
         proj = Projects()
         proj.from_dict(data)
+
         db.session.add(proj)
         db.session.commit()
+
         response = jsonify(proj.to_dict())
         response.status_code = 201
 
@@ -188,13 +192,13 @@ def get_projects():
 
         existing_project = Projects.query.filter_by(id=data['id']).first()
         if not existing_project:
-            return bad_request("project with such ID does not exist")
+            return not_found("project with such ID does not exist")
 
-        response = jsonify(existing_project.to_dict())
         db.session.delete(existing_project)
         db.session.commit()
 
-        response.status_code = 201
+        response = jsonify()
+        response.status_code = 204
         return response
 
     if request.method == "PUT":
@@ -204,13 +208,13 @@ def get_projects():
 
         selected_project = Projects.query.filter_by(id=data['id']).first()
         if not selected_project:
-            return bad_request("no such ID")
+            return not_found("no project with such ID")
 
         selected_project.from_dict(data)
-
         db.session.commit()
+
         response = jsonify(selected_project.to_dict())
-        response.status_code = 201
+        response.status_code = 204
 
         return response
 
@@ -220,11 +224,13 @@ def get_project_tasks(id):
     selected_project = Projects.query.filter_by(id=id).first()
 
     if not selected_project:
-        return bad_request("project with given id does not exist")
+        return not_found("project with given id does not exist")
 
     task_list = selected_project.tasks
 
-    return jsonify({"tasks": [t.to_dict() for t in task_list]})
+    response = jsonify({"tasks": [t.to_dict() for t in task_list]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/projects/<int:id>/tasks/open", methods=["GET"])
@@ -232,11 +238,14 @@ def get_project_open_tasks(id):
     selected_project = Projects.query.filter_by(id=id).first()
 
     if not selected_project:
-        return bad_request("project with given id does not exist")
+        return not_found("project with given id does not exist")
 
     task_list = selected_project.tasks
     open_tasks = list(filter((lambda x: x.status == "open"), task_list))
-    return jsonify({"open": [t.to_dict() for t in open_tasks]})
+
+    response = jsonify({"open": [t.to_dict() for t in open_tasks]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/projects/<int:id>/tasks/done", methods=["GET"])
@@ -244,11 +253,14 @@ def get_project_done_tasks(id):
     selected_project = Projects.query.filter_by(id=id).first()
 
     if not selected_project:
-        return bad_request("project with given id does not exist")
+        return not_found("project with given id does not exist")
 
     task_list = selected_project.tasks
     open_tasks = list(filter((lambda x: x.status == "done"), task_list))
-    return jsonify({"open": [t.to_dict() for t in open_tasks]})
+
+    response = jsonify({"done": [t.to_dict() for t in open_tasks]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/employees/<int:id>/tasks", methods=["GET", "POST"])
@@ -257,38 +269,42 @@ def employee_tasks_by_id(id):
         selected_employee = Employees.query.filter_by(id=id).first()
 
         if not selected_employee:
-            return bad_request("project with given id does not exist")
+            return not_found("project with given id does not exist")
 
         task_list = selected_employee.tasks
-        return jsonify({"tasks": [t.to_dict() for t in task_list]})
+        response = jsonify({"tasks": [t.to_dict() for t in task_list]})
+        response.status_code = 200
+        return response
 
     elif request.method == "POST":
         selected_employee = Employees.query.filter_by(id=id).first()
 
         if not selected_employee:
-            return bad_request("project with given id does not exist")
+            return not_found("project with given id does not exist")
 
         data = request.get_json() or {}
 
+        # reassign existing task
         if 'id' in data:
             selected_task = Tasks.query.filter_by(id=data['id']).first()
             if not selected_task:
-                return bad_request("no task with such ID")
+                return not_found("no task with such ID")
             selected_task.employee = selected_employee
 
             db.session.commit()
             response = jsonify(selected_task.to_dict())
-            response.status_code = 201
+            response.status_code = 204
 
             return response
 
+        # if id is not send the task will be created
         else:
-            if 'name' not in data or "project" not in data:
-                return bad_request('must include name and project field')
+            if 'name' not in data or "project_id" not in data:
+                return bad_request('must include name and project_id field')
 
-            existing_project = Projects.query.filter_by(name=data['project']).first()
+            existing_project = Projects.query.filter_by(id=data['project_id']).first()
             if not existing_project:
-                return bad_request("Project does not exist")
+                return not_found("Project with such ID does not exist")
 
             t = Tasks(employee=selected_employee, project=existing_project)
             t.from_dict(data)
@@ -306,12 +322,19 @@ def get_emp_proj_tasks(emp_id, proj_id):
     selected_employee = Employees.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
-        return bad_request("project with given id does not exist")
+        return not_found("employee with given id does not exist")
+
+    selected_project = Projects.query.filter_by(id=proj_id).first()
+
+    if not selected_project:
+        return not_found("project with given id does not exist")
 
     task_list = selected_employee.tasks
     tasks_from_project_id = list(filter((lambda x: x.project_id == int(proj_id)), task_list))
 
-    return jsonify({"tasks": [t.to_dict() for t in tasks_from_project_id]})
+    response = jsonify({"tasks": [t.to_dict() for t in tasks_from_project_id]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/employees/<int:emp_id>/tasks/open", methods=["GET"])
@@ -319,12 +342,14 @@ def get_emp_open_tasks(emp_id):
     selected_employee = Employees.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
-        return bad_request("project with given id does not exist")
+        return not_found("project with given id does not exist")
 
     task_list = selected_employee.tasks
     tasks_open = list(filter((lambda x: x.status == "open"), task_list))
 
-    return jsonify({"tasks": [t.to_dict() for t in tasks_open]})
+    response = jsonify({"tasks": [t.to_dict() for t in tasks_open]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/employees/<int:emp_id>/tasks/done", methods=["GET"])
@@ -332,26 +357,26 @@ def get_emp_done_tasks(emp_id):
     selected_employee = Employees.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
-        return bad_request("project with given id does not exist")
+        return not_found("project with given id does not exist")
 
     task_list = selected_employee.tasks
     tasks_open = list(filter((lambda x: x.status == "done"), task_list))
 
-    return jsonify({"tasks": [t.to_dict() for t in tasks_open]})
+    response = jsonify({"tasks": [t.to_dict() for t in tasks_open]})
+    response.status_code = 200
+    return response
 
 
 @app.route("/tasks/<int:task_id>", methods=["PATCH"])
 def patch_task_done(task_id):
     selected_task = Tasks.query.filter_by(id=task_id).first()
     if not selected_task:
-        return bad_request("no such task ID")
+        return not_found("no such task ID")
 
     selected_task.status = 'done'
-
     db.session.commit()
-    response = jsonify(selected_task.to_dict())
-    response.status_code = 201
+
+    response = jsonify()
+    response.status_code = 204
 
     return response
-
-
