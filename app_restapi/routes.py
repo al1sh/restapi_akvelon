@@ -1,16 +1,15 @@
 from app_restapi import app, db
 from flask import jsonify, request
-from app_restapi.models import Tasks, Employees, Projects
+from app_restapi.models import Task, Employee, Project
 from app_restapi.errors import *
 
 
-#   ****** /tasks/* routes ******
+#   ****** /tasks/* CRUD routes ******
 
-
-@app.route('/tasks', methods=["GET", "POST", "PUT", "DELETE"])
-def get_tasks():
+@app.route('/tasks', methods=["GET", "POST"])
+def get_post_all_tasks():
     if request.method == "GET":
-        tasks = Tasks.query.all()
+        tasks = Task.query.all()
         response = jsonify([task.to_dict() for task in tasks])
         response.status_code = 200
         return response
@@ -20,22 +19,20 @@ def get_tasks():
         if 'name' not in data or "project_id" not in data:
             return bad_request('must include name and project_id field')
 
-        existing_project = Projects.query.filter_by(id=data['project_id']).first()
+        existing_project = Project.query.filter_by(id=data['project_id']).first()
 
         if not existing_project:
             return not_found("Project with such ID not exist")
 
-        t = Tasks()
+        t = Task(project=existing_project)
+
         if 'employee_id' in data:
-            existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
+            existing_employee = Employee.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
                 return not_found("Employee with such ID does not exist")
 
-            t = Tasks(employee=existing_employee, project=existing_project)
-
-        else:
-            t = Tasks(project=existing_project)
+            t.employee = existing_employee
 
         t.from_dict(data)
         db.session.add(t)
@@ -46,12 +43,21 @@ def get_tasks():
 
         return response
 
-    if request.method == "DELETE":
-        data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include task ID')
 
-        existing_task = Tasks.query.filter_by(id=data['id']).first()
+@app.route("/tasks/<int:task_id>", methods=["GET", "PUT", "DELETE"])
+def get_put_delete_by_task_id(task_id):
+    if request.method == 'GET':
+        existing_task = Task.query.filter_by(id=task_id).first()
+
+        if not existing_task:
+            return not_found("task with such ID does not exist")
+
+        response = jsonify(existing_task.to_dict())
+        response.status_code = 200
+        return response
+
+    if request.method == "DELETE":
+        existing_task = Task.query.filter_by(id=task_id).first()
         if not existing_task:
             return not_found("task ID doesn't exist")
 
@@ -65,15 +71,14 @@ def get_tasks():
 
     if request.method == "PUT":
         data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include id field')
 
-        t = Tasks.query.filter_by(id=data['id']).first()
+        t = Task.query.filter_by(id=task_id).first()
         if not t:
             return not_found("no such task with such ID")
 
+        # reassign if project id provided
         if 'project_id' in data:
-            existing_project = Projects.query.filter_by(id=data['project_id']).first()
+            existing_project = Project.query.filter_by(id=data['project_id']).first()
 
             if not existing_project:
                 return not_found("Project with such ID does not exist")
@@ -81,7 +86,7 @@ def get_tasks():
                 t.project = existing_project
 
         if 'employee_id' in data:
-            existing_employee = Employees.query.filter_by(id=data['employee_id']).first()
+            existing_employee = Employee.query.filter_by(id=data['employee_id']).first()
 
             if not existing_employee:
                 return not_found("Employee with such ID does not exist")
@@ -96,13 +101,14 @@ def get_tasks():
 
         return response
 
+
 #   ******* /employees/* routes *******
 
 
-@app.route('/employees', methods=["GET", "POST", "PUT", "DELETE"])
+@app.route('/employees', methods=["GET", "POST"])
 def get_employees():
     if request.method == "GET":
-        employees = Employees.query.all()
+        employees = Employee.query.all()
 
         response = jsonify([emp.to_dict() for emp in employees])
         response.status_code = 200
@@ -113,7 +119,7 @@ def get_employees():
         if 'name' not in data:
             return bad_request('must include name field')
 
-        emp = Employees()
+        emp = Employee()
         emp.from_dict(data)
 
         db.session.add(emp)
@@ -124,12 +130,21 @@ def get_employees():
 
         return response
 
-    if request.method == "DELETE":
-        data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include employee ID')
 
-        existing_employee = Employees.query.filter_by(id=data['id']).first()
+@app.route("/employees/<int:employee_id>", methods=["GET", "PUT", "DELETE"])
+def get_put_delete_by_employee_id(employee_id):
+    if request.method == 'GET':
+        existing_employee = Employee.query.filter_by(id=employee_id).first()
+
+        if not existing_employee:
+            return not_found("employee with such ID does not exist")
+
+        response = jsonify(existing_employee.to_dict())
+        response.status_code = 200
+        return response
+
+    if request.method == "DELETE":
+        existing_employee = Employee.query.filter_by(id=employee_id).first()
         if not existing_employee:
             return not_found("employee with such ID doesn't exist")
 
@@ -142,10 +157,8 @@ def get_employees():
 
     if request.method == "PUT":
         data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include id field')
 
-        selected_employee = Employees.query.filter_by(id=data['id']).first()
+        selected_employee = Employee.query.filter_by(id=employee_id).first()
         if not selected_employee:
             return not_found("no employee with such ID")
 
@@ -160,21 +173,21 @@ def get_employees():
 
 #   ****** /projects/* routes ******
 
-@app.route('/projects', methods=["GET", "POST", "PUT", "DELETE"])
+@app.route('/projects', methods=["GET", "POST"])
 def get_projects():
     if request.method == "GET":
-        projects = Projects.query.all()
+        projects = Project.query.all()
         response = jsonify([proj.to_dict() for proj in projects])
         response.status_code = 200
         return response
 
-    if request.method == 'POST':
+    elif request.method == 'POST':
         data = request.get_json(force=True) or {}
 
         if 'name' not in data:
             return bad_request('must include name field')
 
-        proj = Projects()
+        proj = Project()
         proj.from_dict(data)
 
         db.session.add(proj)
@@ -185,12 +198,22 @@ def get_projects():
 
         return response
 
-    if request.method == "DELETE":
-        data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include project name')
 
-        existing_project = Projects.query.filter_by(id=data['id']).first()
+@app.route("/projects/<int:project_id>", methods=["GET", "PUT", "DELETE"])
+def get_put_delete_by_project_id(project_id):
+    if request.method == 'GET':
+        existing_project = Project.query.filter_by(id=project_id).first()
+
+        if not existing_project:
+            return not_found("project with such ID does not exist")
+
+        response = jsonify(existing_project.to_dict())
+        response.status_code = 200
+        return response
+
+    if request.method == "DELETE":
+
+        existing_project = Project.query.filter_by(id=project_id).first()
         if not existing_project:
             return not_found("project with such ID does not exist")
 
@@ -201,12 +224,10 @@ def get_projects():
         response.status_code = 204
         return response
 
-    if request.method == "PUT":
+    elif request.method == "PUT":
         data = request.get_json() or {}
-        if 'id' not in data:
-            return bad_request('must include id field')
 
-        selected_project = Projects.query.filter_by(id=data['id']).first()
+        selected_project = Project.query.filter_by(id=project_id).first()
         if not selected_project:
             return not_found("no project with such ID")
 
@@ -219,9 +240,11 @@ def get_projects():
         return response
 
 
+#           ******* Individual endpoints *******
+
 @app.route("/projects/<int:id>/tasks", methods=["GET"])
 def get_project_tasks(id):
-    selected_project = Projects.query.filter_by(id=id).first()
+    selected_project = Project.query.filter_by(id=id).first()
 
     if not selected_project:
         return not_found("project with given id does not exist")
@@ -235,7 +258,7 @@ def get_project_tasks(id):
 
 @app.route("/projects/<int:id>/tasks/open", methods=["GET"])
 def get_project_open_tasks(id):
-    selected_project = Projects.query.filter_by(id=id).first()
+    selected_project = Project.query.filter_by(id=id).first()
 
     if not selected_project:
         return not_found("project with given id does not exist")
@@ -250,7 +273,7 @@ def get_project_open_tasks(id):
 
 @app.route("/projects/<int:id>/tasks/done", methods=["GET"])
 def get_project_done_tasks(id):
-    selected_project = Projects.query.filter_by(id=id).first()
+    selected_project = Project.query.filter_by(id=id).first()
 
     if not selected_project:
         return not_found("project with given id does not exist")
@@ -266,7 +289,7 @@ def get_project_done_tasks(id):
 @app.route("/employees/<int:id>/tasks", methods=["GET", "POST"])
 def employee_tasks_by_id(id):
     if request.method == "GET":
-        selected_employee = Employees.query.filter_by(id=id).first()
+        selected_employee = Employee.query.filter_by(id=id).first()
 
         if not selected_employee:
             return not_found("project with given id does not exist")
@@ -277,54 +300,39 @@ def employee_tasks_by_id(id):
         return response
 
     elif request.method == "POST":
-        selected_employee = Employees.query.filter_by(id=id).first()
+        selected_employee = Employee.query.filter_by(id=id).first()
 
         if not selected_employee:
             return not_found("project with given id does not exist")
 
         data = request.get_json() or {}
 
-        # reassign existing task
-        if 'id' in data:
-            selected_task = Tasks.query.filter_by(id=data['id']).first()
-            if not selected_task:
-                return not_found("no task with such ID")
-            selected_task.employee = selected_employee
+        if 'name' not in data or "project_id" not in data:
+            return bad_request('must include name and project_id field')
 
-            db.session.commit()
-            response = jsonify(selected_task.to_dict())
-            response.status_code = 204
+        existing_project = Project.query.filter_by(id=data['project_id']).first()
+        if not existing_project:
+            return not_found("Project with such ID does not exist")
 
-            return response
+        t = Task(employee=selected_employee, project=existing_project)
+        t.from_dict(data)
 
-        # if id is not send the task will be created
-        else:
-            if 'name' not in data or "project_id" not in data:
-                return bad_request('must include name and project_id field')
+        db.session.add(t)
+        db.session.commit()
 
-            existing_project = Projects.query.filter_by(id=data['project_id']).first()
-            if not existing_project:
-                return not_found("Project with such ID does not exist")
-
-            t = Tasks(employee=selected_employee, project=existing_project)
-            t.from_dict(data)
-
-            db.session.add(t)
-            db.session.commit()
-
-            response = jsonify(t.to_dict())
-            response.status_code = 201
-            return response
+        response = jsonify(t.to_dict())
+        response.status_code = 201
+        return response
 
 
 @app.route("/employees/<int:emp_id>/<int:proj_id>/tasks", methods=["GET"])
 def get_emp_proj_tasks(emp_id, proj_id):
-    selected_employee = Employees.query.filter_by(id=emp_id).first()
+    selected_employee = Employee.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
         return not_found("employee with given id does not exist")
 
-    selected_project = Projects.query.filter_by(id=proj_id).first()
+    selected_project = Project.query.filter_by(id=proj_id).first()
 
     if not selected_project:
         return not_found("project with given id does not exist")
@@ -339,7 +347,7 @@ def get_emp_proj_tasks(emp_id, proj_id):
 
 @app.route("/employees/<int:emp_id>/tasks/open", methods=["GET"])
 def get_emp_open_tasks(emp_id):
-    selected_employee = Employees.query.filter_by(id=emp_id).first()
+    selected_employee = Employee.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
         return not_found("project with given id does not exist")
@@ -354,7 +362,7 @@ def get_emp_open_tasks(emp_id):
 
 @app.route("/employees/<int:emp_id>/tasks/done", methods=["GET"])
 def get_emp_done_tasks(emp_id):
-    selected_employee = Employees.query.filter_by(id=emp_id).first()
+    selected_employee = Employee.query.filter_by(id=emp_id).first()
 
     if not selected_employee:
         return not_found("project with given id does not exist")
@@ -369,7 +377,7 @@ def get_emp_done_tasks(emp_id):
 
 @app.route("/tasks/<int:task_id>", methods=["PATCH"])
 def patch_task_done(task_id):
-    selected_task = Tasks.query.filter_by(id=task_id).first()
+    selected_task = Task.query.filter_by(id=task_id).first()
     if not selected_task:
         return not_found("no such task ID")
 

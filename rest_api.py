@@ -1,5 +1,5 @@
 from app_restapi import app, db
-from app_restapi.models import Tasks, Employees, Projects
+from app_restapi.models import Task, Employee, Project
 
 
 if __name__ == "__main__":

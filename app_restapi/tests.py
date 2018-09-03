@@ -2,7 +2,8 @@ import sys
 sys.path.append("../")
 
 from app_restapi import app, db
-from app_restapi.models import Tasks, Employees, Projects
+from app_restapi.models import Task, Employee, Project, Status, Gender
+from datetime import datetime
 import unittest
 import json
 
@@ -15,36 +16,96 @@ class TestAPIEndpoints(unittest.TestCase):
         db.create_all()
         self.app = app.test_client()
 
-        self.employee1 = Employees(name="John", gender='M', date_of_birth="01/05/1990", start_date="2001")
-        self.employee2 = Employees(name="Mike", gender='M', date_of_birth="09/05/1999", start_date="2011")
+        self.employee1 = Employee(name="John", gender=Gender.M, date_of_birth=datetime.strptime("01-01-1990", "%d-%m-%Y"),
+                                  start_date=datetime.strptime("01-01-2001", "%d-%m-%Y"))
+        self.employee2 = Employee(name="Mike", gender=Gender.M, date_of_birth=datetime.strptime("10-10-1999", "%d-%m-%Y"),
+                                  start_date=datetime.strptime("01-01-2011", "%d-%m-%Y"))
 
-        self.project1 = Projects(name="test1", code="red")
-        self.project2 = Projects(name='test2', code="blue")
+        self.project1 = Project(name="test1", code="red")
+        self.project2 = Project(name='test2', code="blue")
 
-        self.task1 = Tasks(name='task1', description='task1_test', status='open',
-                           project=self.project1)
+        self.task1 = Task(name='task1', description='task1_test', status=Status.open,
+                          project=self.project1)
 
-        self.task2 = Tasks(name='task2', description='task2_test', status='open',
-                           project=self.project2, employee=self.employee2)
+        self.task2 = Task(name='task2', description='task2_test', status=Status.open,
+                          project=self.project2, employee=self.employee2)
 
-        db.session.add_all([self.employee1, self.employee2])
-        db.session.add_all([self.project1, self.project2])
-        db.session.add_all([self.task1, self.task2])
+        # db.session.add_all([self.employee1, self.employee2])
+        # db.session.add_all([self.project1, self.project2])
+        # db.session.add_all([self.task1, self.task2])
+
+        db.session.add(self.employee1)
+        db.session.add(self.employee2)
+        db.session.add(self.project1)
+        db.session.add(self.project2)
+        db.session.add(self.task1)
+        db.session.add(self.task2)
         db.session.commit()
 
     def tearDown(self):
         db.session.remove()
         db.drop_all()
 
+    def test_orphaned_tasks_of_employee(self):
+        task3 = Task(name='task3', description='task3_test', status=Status.open,
+                     project=self.project2, employee=self.employee2)
+        db.session.add(task3)
+        db.session.commit()
+
+        tasks_of_employee = self.employee2.tasks
+        self.assertTrue(task3 in tasks_of_employee and self.task2 in tasks_of_employee)
+
+        # employee2 = Employee.query.filter_by(id=2).first()
+        db.session.delete(self.employee2)
+        db.session.commit()
+
+        self.assertIsNotNone(task3)
+        self.assertIsNotNone(self.task2)
+
+        self.assertIsNone(task3.employee_id)
+        self.assertIsNone(self.task2.employee_id)
+
+    def test_orphaned_tasks_of_project(self):
+        task3 = Task(name='task3', description='task3_test', status=Status.open,
+                     project=self.project2)
+        db.session.add(task3)
+        db.session.commit()
+
+        tasks_of_project = self.project2.tasks
+        self.assertTrue(task3 in tasks_of_project and self.task2 in tasks_of_project)
+
+        db.session.delete(self.project2)
+        db.session.commit()
+
+        task2 = Task.query.filter_by(id=1).first()
+        self.assertIsNone(task2)
+
+
     # *********** /tasks CRUD endpoints ***********
 
-    def test_tasks_get(self):
+    def test_tasks_get_all(self):
         with app.app_context():
             response = self.app.get('/tasks')
             compare = [self.task2.to_dict(), self.task1.to_dict()]
 
             self.assertEqual(response.json, compare)
             self.assertEqual(response.status_code, 200)
+
+    def test_tasks_get_one_correct(self):
+        with app.app_context():
+            response = self.app.get('/tasks/1')
+
+            compare = self.task2.to_dict()
+
+            self.assertEqual(response.json, compare)
+            self.assertEqual(response.status_code, 200)
+
+    def test_tasks_get_one_nonexistent_id(self):
+        with app.app_context():
+            response = self.app.get('/tasks/99')
+
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json['message'], 'task with such ID does not exist')
 
     def test_tasks_post_correct(self):
         with app.app_context():
@@ -54,7 +115,7 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Tasks.query.filter_by(name='TEST_TASK').first()
+            new = Task.query.filter_by(name='TEST_TASK').first()
 
             self.assertEqual(response.status_code, 201)
             self.assertIsNotNone(new)
@@ -67,7 +128,7 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Tasks.query.filter_by(name='TEST_TASK').first()
+            new = Task.query.filter_by(name='TEST_TASK').first()
 
             self.assertEqual(response.status_code, 400)
             self.assertIsNone(new)
@@ -80,12 +141,12 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Tasks.query.filter_by(description='task3_test').first()
+            new = Task.query.filter_by(description='task3_test').first()
 
             self.assertEqual(response.status_code, 400)
             self.assertIsNone(new)
 
-    def test_tasks_post_with_not_exisiting_project_id(self):
+    def test_tasks_post_with_nonexisiting_project_id(self):
         with app.app_context():
             new_task_dict = {'name': 'TEST_TASK', 'description': 'task3_test', 'status': 'done',
                              'project_id': 99, 'employee_id': 1}
@@ -93,7 +154,7 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Tasks.query.filter_by(name='TEST_TASK').first()
+            new = Task.query.filter_by(name='TEST_TASK').first()
 
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(new)
@@ -106,95 +167,79 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Tasks.query.filter_by(name='TEST_TASK').first()
+            new = Task.query.filter_by(name='TEST_TASK').first()
 
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(new)
 
     def test_tasks_put_correct(self):
         with app.app_context():
-            new_task_dict = {'id': '1', 'description': 'task1_put'}
+            new_task_dict = {'description': 'task1_put'}
 
-            response = self.app.put('/tasks', data=json.dumps(new_task_dict),
+            response = self.app.put('/tasks/1', data=json.dumps(new_task_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Tasks.query.filter_by(id=1).first()
+            t = Task.query.filter_by(id=1).first()
 
             self.assertEqual(response.status_code, 204)
             self.assertEqual(t.description, 'task1_put')
 
-    def test_tasks_put_without_id(self):
+    def test_tasks_put_nonexistent_id(self):
         with app.app_context():
             new_task_dict = {'description': 'task1_put'}
 
-            response = self.app.put('/tasks', data=json.dumps(new_task_dict),
+            response = self.app.put('/tasks/99', data=json.dumps(new_task_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Tasks.query.filter_by(description='task1_put').first()
-
-            self.assertEqual(response.status_code, 400)
+            t = Task.query.filter_by(id=99).first()
             self.assertIsNone(t)
-
-    def test_tasks_put_nonexistent_id(self):
-        with app.app_context():
-            new_task_dict = {'id': '99', 'description': 'task1_put'}
-
-            response = self.app.put('/tasks', data=json.dumps(new_task_dict),
-                                    headers={"content-type": "application/json"})
-
-            t = Tasks.query.filter_by(id=99).first()
 
             self.assertEqual(response.status_code, 404)
-            self.assertIsNone(t)
 
     def test_tasks_put_nonexistent_project_id(self):
         with app.app_context():
-            new_task_dict = {'id': '1', 'description': 'task1_put', 'project_id': '99'}
+            new_task_dict = {'description': 'task1_put', 'project_id': '99'}
 
-            response = self.app.put('/tasks', data=json.dumps(new_task_dict),
+            response = self.app.put('/tasks/1', data=json.dumps(new_task_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Tasks.query.filter_by(id=1).first()
+            t = Task.query.filter_by(id=1).first()
 
             self.assertEqual(response.status_code, 404)
             self.assertNotEqual(t.project_id, 99)
 
     def test_tasks_put_nonexistent_employee_id(self):
         with app.app_context():
-            new_task_dict = {'id': '1', 'description': 'task1_put', 'employee_id': '99'}
+            new_task_dict = {'description': 'task1_put', 'employee_id': '99'}
 
-            response = self.app.put('/tasks', data=json.dumps(new_task_dict),
+            response = self.app.put('/tasks/1', data=json.dumps(new_task_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Tasks.query.filter_by(id=1).first()
+            t = Task.query.filter_by(id=1).first()
 
             self.assertEqual(response.status_code, 404)
             self.assertNotEqual(t.employee_id, 99)
 
     def test_tasks_delete_correct(self):
         with app.app_context():
-            new_task_dict = {'id': '1'}
-            t = Tasks.query.filter_by(id=1).first()
+            t = Task.query.filter_by(id=1).first()
             self.assertIsNotNone(t)
 
-            response = self.app.delete('/tasks', data=json.dumps(new_task_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/tasks/1')
 
             self.assertEqual(response.status_code, 204)
-            t = Tasks.query.filter_by(id=1).first()
+            t = Task.query.filter_by(id=1).first()
             self.assertIsNone(t)
 
 
     def test_delete_tasks_nonexistent_id(self):
         with app.app_context():
-            new_task_dict = {'id': '99'}
-            t = Tasks.query.filter_by(id=99).first()
+            t = Task.query.filter_by(id=99).first()
             self.assertIsNone(t)
 
-            response = self.app.delete('/tasks', data=json.dumps(new_task_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/tasks/99')
 
-            t = Tasks.query.filter_by(id=99).first()
+            t = Task.query.filter_by(id=99).first()
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(t)
 
@@ -207,94 +252,96 @@ class TestAPIEndpoints(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json, compare)
 
+    def test_employees_get_one_by_id(self):
+        with app.app_context():
+            response = self.app.get('/employees/1')
+
+            compare = self.employee1.to_dict()
+
+            self.assertEqual(response.json, compare)
+            self.assertEqual(response.status_code, 200)
+
+    def test_employees_get_one_by_id_nonexistent_id(self):
+        with app.app_context():
+            response = self.app.get('/employees/99')
+
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json['message'], 'employee with such ID does not exist')
+
     def test_employees_post_correct(self):
         with app.app_context():
             new_emp_dict = {'name': 'TEST_EMPLOYEE', 'gender': 'M'}
 
-            emp3 = Tasks()
+            emp3 = Task()
             emp3.from_dict(new_emp_dict)
 
             response = self.app.post('/employees', data=json.dumps(new_emp_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Employees.query.filter_by(name='TEST_EMPLOYEE').first()
+            new = Employee.query.filter_by(name='TEST_EMPLOYEE').first()
 
             self.assertEqual(response.status_code, 201)
             self.assertEqual(response.json, new.to_dict())
 
     def test_employees_post_without_name(self):
         with app.app_context():
-            new_emp_dict = {'gender': 'non-binary'}
+            new_emp_dict = {'gender': 'F'}
 
             response = self.app.post('/employees', data=json.dumps(new_emp_dict),
                                      headers={"content-type": "application/json"})
 
-            new_employee = Employees.query.filter_by(gender='non-binary').first()
+            new_employee = Employee.query.filter_by(gender='F').first()
 
             self.assertEqual(response.status_code, 400)
             self.assertIsNone(new_employee)
 
     def test_employees_put_correct(self):
         with app.app_context():
-            new_dict = {'id': '1', 'name': 'test_put'}
+            new_dict = {'name': 'test_put'}
 
-            response = self.app.put('/employees', data=json.dumps(new_dict),
+            response = self.app.put('/employees/1', data=json.dumps(new_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Employees.query.filter_by(id=1).first()
+            t = Employee.query.filter_by(id=1).first()
 
             self.assertEqual(response.status_code, 204)
             self.assertEqual(t.name, 'test_put')
 
     def test_employees_put_nonexistent_id(self):
         with app.app_context():
-            new_dict = {'id': '99', 'name': 'test_put'}
+            new_dict = {'name': 'test_put'}
+            e = Employee.query.filter_by(id=99).first()
+            self.assertIsNone(e)
 
-            response = self.app.put('/employees', data=json.dumps(new_dict),
+            response = self.app.put('/employees/99', data=json.dumps(new_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Employees.query.filter_by(name='test_put').first()
+            e = Employee.query.filter_by(name='test_put').first()
 
             self.assertEqual(response.status_code, 404)
-            self.assertIsNone(t)
-
-    def test_employees_put_without_id(self):
-        with app.app_context():
-            new_dict = {'name': 'test_put'}
-
-            response = self.app.put('/employees', data=json.dumps(new_dict),
-                                    headers={"content-type": "application/json"})
-
-            t = Employees.query.filter_by(name='test_put').first()
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIsNone(t)
+            self.assertIsNone(e)
 
     def test_employees_delete_correct(self):
         with app.app_context():
-            new_dict = {'id': '1'}
-            t = Employees.query.filter_by(id=1).first()
-            self.assertIsNotNone(t)
+            e = Employee.query.filter_by(id=1).first()
+            self.assertIsNotNone(e)
 
-            response = self.app.delete('/employees', data=json.dumps(new_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/employees/1')
             self.assertEqual(response.status_code, 204)
 
-            t = Employees.query.filter_by(id=1).first()
-            self.assertIsNone(t)
+            e = Employee.query.filter_by(id=1).first()
+            self.assertIsNone(e)
 
     def test_employees_delete_nonexistent_id(self):
         with app.app_context():
-            new_dict = {'id': '99'}
-            t = Employees.query.filter_by(id=99).first()
+            t = Employee.query.filter_by(id=99).first()
             self.assertIsNone(t)
 
-            response = self.app.delete('/employees', data=json.dumps(new_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/employees/99')
 
             self.assertEqual(response.status_code, 404)
 
-    # ********* /projects CRUD endpoints *********
+    # # ********* /projects CRUD endpoints *********
 
     def test_projects_get(self):
         with app.app_context():
@@ -303,17 +350,33 @@ class TestAPIEndpoints(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json, compare)
 
+    def test_projects_get_one_by_id(self):
+        with app.app_context():
+            response = self.app.get('/projects/1')
+
+            compare = self.project2.to_dict()
+
+            self.assertEqual(response.json, compare)
+            self.assertEqual(response.status_code, 200)
+
+    def test_projects_get_one_by_id_nonexistent_id(self):
+        with app.app_context():
+            response = self.app.get('/projects/99')
+
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.json['message'], 'project with such ID does not exist')
+
     def test_projects_post_correct(self):
         with app.app_context():
             new_dict = {'name': 'TEST_PROJECT', 'code': 'RED'}
 
-            emp3 = Employees()
+            emp3 = Employee()
             emp3.from_dict(new_dict)
 
             response = self.app.post('/projects', data=json.dumps(new_dict),
                                      headers={"content-type": "application/json"})
 
-            new = Projects.query.filter_by(name='TEST_PROJECT').first()
+            new = Project.query.filter_by(name='TEST_PROJECT').first()
 
             self.assertEqual(response.status_code, 201)
             self.assertEqual(response.json, new.to_dict())
@@ -325,68 +388,64 @@ class TestAPIEndpoints(unittest.TestCase):
             response = self.app.post('/projects', data=json.dumps(new_dict),
                                      headers={"content-type": "application/json"})
 
-            new_project = Projects.query.filter_by(code='TEST_CODE').first()
+            new_project = Project.query.filter_by(code='TEST_CODE').first()
 
             self.assertEqual(response.status_code, 400)
             self.assertIsNone(new_project)
 
     def test_projects_put_correct(self):
         with app.app_context():
-            new_dict = {'id': '1', 'name': 'test_put'}
+            new_dict = {'name': 'test_put'}
 
-            response = self.app.put('/projects', data=json.dumps(new_dict),
+            response = self.app.put('/projects/1', data=json.dumps(new_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
 
             self.assertEqual(response.status_code, 204)
             self.assertEqual(t.name, 'test_put')
 
     def test_projects_put_nonexistent_id(self):
         with app.app_context():
-            new_dict = {'id': '99', 'name': 'test_put'}
+            new_dict = {'name': 'test_put'}
 
-            response = self.app.put('/projects', data=json.dumps(new_dict),
+            response = self.app.put('/projects/99', data=json.dumps(new_dict),
                                     headers={"content-type": "application/json"})
 
-            t = Projects.query.filter_by(name='test_put').first()
+            t = Project.query.filter_by(name='test_put').first()
 
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(t)
 
-    def test_projects_put_without_id(self):
-        with app.app_context():
-            new_dict = {'name': 'test_put'}
-
-            response = self.app.put('/projects', data=json.dumps(new_dict),
-                                    headers={"content-type": "application/json"})
-
-            t = Projects.query.filter_by(name='test_put').first()
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIsNone(t)
+    # def test_projects_put_without_id(self):
+    #     with app.app_context():
+    #         new_dict = {'name': 'test_put'}
+    #
+    #         response = self.app.put('/projects', data=json.dumps(new_dict),
+    #                                 headers={"content-type": "application/json"})
+    #
+    #         t = Project.query.filter_by(name='test_put').first()
+    #
+    #         self.assertEqual(response.status_code, 400)
+    #         self.assertIsNone(t)
 
     def test_projects_delete_correct(self):
         with app.app_context():
-            new_dict = {'id': '1'}
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
             self.assertIsNotNone(t)
 
-            response = self.app.delete('/projects', data=json.dumps(new_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/projects/1')
             self.assertEqual(response.status_code, 204)
 
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
             self.assertIsNone(t)
 
     def test_projects_delete_nonexistent_id(self):
         with app.app_context():
-            new_dict = {'id': '99'}
-            t = Projects.query.filter_by(id=99).first()
+            t = Project.query.filter_by(id=99).first()
             self.assertIsNone(t)
 
-            response = self.app.delete('/projects', data=json.dumps(new_dict),
-                                       headers={"content-type": "application/json"})
+            response = self.app.delete('/projects/99')
 
             self.assertEqual(response.status_code, 404)
 
@@ -394,7 +453,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_tasks_of_project_by_id_correct(self):
         with app.app_context():
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
             tasks = []
             for task in t.tasks:
                 tasks.append(task)
@@ -406,7 +465,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_tasks_of_project_by_id_nonexistent(self):
         with app.app_context():
-            t = Projects.query.filter_by(id=99).first()
+            t = Project.query.filter_by(id=99).first()
             self.assertIsNone(t)
             response = self.app.get('/projects/99/tasks')
 
@@ -415,7 +474,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_open_tasks_by_project_id_correct(self):
         with app.app_context():
             response = self.app.get('/projects/1/tasks/open')
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
 
             tasks = []
             for task in t.tasks:
@@ -428,14 +487,14 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_open_tasks_by_project_id_with_nonexistent_id(self):
         with app.app_context():
             response = self.app.get('/projects/99/tasks/open')
-            t = Projects.query.filter_by(id=99).first()
+            t = Project.query.filter_by(id=99).first()
             self.assertIsNone(t)
             self.assertEqual(response.status_code, 404)
 
     def test_get_closed_tasks_by_project_id_correct(self):
         with app.app_context():
             response = self.app.get('/projects/1/tasks/done')
-            t = Projects.query.filter_by(id=1).first()
+            t = Project.query.filter_by(id=1).first()
 
             tasks = []
             for task in t.tasks:
@@ -448,7 +507,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_closed_tasks_by_project_id_with_nonexistent_id(self):
         with app.app_context():
             response = self.app.get('/projects/99/tasks/done')
-            t = Projects.query.filter_by(id=99).first()
+            t = Project.query.filter_by(id=99).first()
             self.assertIsNone(t)
             self.assertEqual(response.status_code, 404)
 
@@ -457,7 +516,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_employee_tasks_by_id_correct(self):
         with app.app_context():
             response = self.app.get('/employees/1/tasks')
-            t = Employees.query.filter_by(id=1).first()
+            t = Employee.query.filter_by(id=1).first()
 
             tasks = []
             for task in t.tasks:
@@ -469,23 +528,24 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_employee_tasks_by_nonexistent_id(self):
         with app.app_context():
             response = self.app.get('/employees/99/tasks')
-            t = Employees.query.filter_by(id=99).first()
+            t = Employee.query.filter_by(id=99).first()
 
             self.assertIsNone(t)
             self.assertEqual(response.status_code, 404)
 
-    def test_post_existing_task_to_employee_by_id_correct(self):
+    def test_post_task_to_employee_by_id_with_nonexistent_id(self):
         with app.app_context():
+            t = Task.query.filter_by(id=99).first()
+            self.assertIsNone(t)
 
-            new_task_dict = {'id': 1}
-
-            response = self.app.post('/employees/1/tasks', data=json.dumps(new_task_dict),
+            new_task_dict = {'name': 'TEST', 'project_id': 1}
+            response = self.app.post('/employees/99/tasks', data=json.dumps(new_task_dict),
                                      headers={"content-type": "application/json"})
-            self.assertEqual(response.status_code, 204)
 
-            e = Employees.query.filter_by(id=1).first()
-            t = Tasks.query.filter_by(id=1).first()
-            self.assertTrue(t in e.tasks)
+            self.assertEqual(response.status_code, 404)
+
+            t = Task.query.filter_by(name='TEST').first()
+            self.assertIsNone(t)
 
     def test_post_new_task_to_employee_by_id_correct(self):
         with app.app_context():
@@ -495,23 +555,10 @@ class TestAPIEndpoints(unittest.TestCase):
                                      headers={"content-type": "application/json"})
             self.assertEqual(response.status_code, 201)
 
-            e = Employees.query.filter_by(id=1).first()
-            t = Tasks.query.filter_by(name='TEST_TASK').first()
+            e = Employee.query.filter_by(id=1).first()
+            t = Task.query.filter_by(name='TEST_TASK').first()
             self.assertTrue(t in e.tasks)
             self.assertEqual(response.json, t.to_dict())
-
-    def test_post_task_to_employee_by_id_with_nonexistent_id(self):
-        with app.app_context():
-            t = Tasks.query.filter_by(id=99).first()
-            self.assertIsNone(t)
-
-            new_task_dict = {'id': 99, 'name': 'TEST', 'project_id': 1}
-            response = self.app.post('/employees/99/tasks', data=json.dumps(new_task_dict),
-                                     headers={"content-type": "application/json"})
-            self.assertEqual(response.status_code, 404)
-
-            t = Tasks.query.filter_by(id=99).first()
-            self.assertIsNone(t)
 
     def test_post_task_to_employee_by_id_without_name(self):
         with app.app_context():
@@ -522,7 +569,7 @@ class TestAPIEndpoints(unittest.TestCase):
                                      headers={"content-type": "application/json"})
             self.assertEqual(response.status_code, 400)
 
-            t = Tasks.query.filter_by(description='TEST').first()
+            t = Task.query.filter_by(description='TEST').first()
             self.assertIsNone(t)
 
     def test_post_task_to_employee_by_id_without_project_id(self):
@@ -534,14 +581,14 @@ class TestAPIEndpoints(unittest.TestCase):
                                      headers={"content-type": "application/json"})
             self.assertEqual(response.status_code, 400)
 
-            t = Tasks.query.filter_by(name='TEST_TASK').first()
+            t = Task.query.filter_by(name='TEST_TASK').first()
             self.assertIsNone(t)
 
     def test_get_employee_tasks_by_id_from_project_id_correct(self):
         with app.app_context():
             response = self.app.get('/employees/2/2/tasks')
-            t = Employees.query.filter_by(id=2).first()
-            p = Projects.query.filter_by(id=2).first()
+            t = Employee.query.filter_by(id=2).first()
+            p = Project.query.filter_by(id=2).first()
 
             task_list = t.tasks
             self.assertTrue(self.task2 in task_list)
@@ -549,7 +596,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_employee_tasks_by_id_from_project_id_nonexistent_project(self):
         with app.app_context():
-            p = Projects.query.filter_by(id=99).first()
+            p = Project.query.filter_by(id=99).first()
             self.assertIsNone(p)
 
             response = self.app.get('/employees/2/99/tasks')
@@ -558,7 +605,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_employee_tasks_by_id_from_project_id_nonexistent_employee(self):
         with app.app_context():
-            e = Employees.query.filter_by(id=99).first()
+            e = Employee.query.filter_by(id=99).first()
             self.assertIsNone(e)
 
             response = self.app.get('/employees/99/2/tasks')
@@ -568,7 +615,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_open_tasks_by_employee_id_correct(self):
         with app.app_context():
             response = self.app.get('/employees/2/tasks/open')
-            t = Employees.query.filter_by(id=2).first()
+            t = Employee.query.filter_by(id=2).first()
             tasks_open = list(filter((lambda x: x.status == "open"), t.tasks))
 
             self.assertEqual(response.json, {'tasks': [t.to_dict() for t in tasks_open]})
@@ -576,7 +623,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_open_tasks_by_employee_id_with_nonexistent_id(self):
         with app.app_context():
-            e = Employees.query.filter_by(id=99).first()
+            e = Employee.query.filter_by(id=99).first()
             self.assertIsNone(e)
 
             response = self.app.get('/employees/99/tasks/open')
@@ -586,7 +633,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_get_done_tasks_by_employee_id_correct(self):
         with app.app_context():
             response = self.app.get('/employees/2/tasks/done')
-            t = Employees.query.filter_by(id=2).first()
+            t = Employee.query.filter_by(id=2).first()
             tasks_open = list(filter((lambda x: x.status == "done"), t.tasks))
 
             self.assertEqual(response.json, {'tasks': [t.to_dict() for t in tasks_open]})
@@ -594,7 +641,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_get_done_tasks_by_employee_id_with_nonexistent_id(self):
         with app.app_context():
-            e = Employees.query.filter_by(id=99).first()
+            e = Employee.query.filter_by(id=99).first()
             self.assertIsNone(e)
 
             response = self.app.get('/employees/99/tasks/done')
@@ -604,14 +651,14 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_patch_task_status_by_id_correct(self):
         with app.app_context():
             response = self.app.patch('/tasks/1')
-            t = Tasks.query.filter_by(id=1).first()
-            self.assertEqual(t.status, "done")
+            t = Task.query.filter_by(id=1).first()
+            self.assertEqual(t.status.name, "done")
 
     #   *** Individual /tasks/* endpoints ***
 
     def test_patch_task_status_by_id_nonexistent_id(self):
         with app.app_context():
-            t = Tasks.query.filter_by(id=99).first()
+            t = Task.query.filter_by(id=99).first()
             self.assertIsNone(t)
 
             response = self.app.patch('/tasks/99')
