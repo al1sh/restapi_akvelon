@@ -20,13 +20,16 @@ class TestAPIEndpoints(unittest.TestCase):
                                   start_date=datetime.strptime("01-01-2001", "%d-%m-%Y"))
         self.employee2 = Employee(name="Mike", gender=Gender.M, date_of_birth=datetime.strptime("10-10-1999", "%d-%m-%Y"),
                                   start_date=datetime.strptime("01-01-2011", "%d-%m-%Y"))
-
+        # id = 2
         self.project1 = Project(name="test1", code="red")
+
+        # id = 1
         self.project2 = Project(name='test2', code="blue")
 
+        # id = 2
         self.task1 = Task(name='task1', description='task1_test', status=Status.open,
                           project=self.project1)
-
+        # id = 1
         self.task2 = Task(name='task2', description='task2_test', status=Status.open,
                           project=self.project2, employee=self.employee2)
 
@@ -55,7 +58,6 @@ class TestAPIEndpoints(unittest.TestCase):
         tasks_of_employee = self.employee2.tasks
         self.assertTrue(task3 in tasks_of_employee and self.task2 in tasks_of_employee)
 
-        # employee2 = Employee.query.filter_by(id=2).first()
         db.session.delete(self.employee2)
         db.session.commit()
 
@@ -80,6 +82,8 @@ class TestAPIEndpoints(unittest.TestCase):
         task2 = Task.query.filter_by(id=1).first()
         self.assertIsNone(task2)
 
+        task3 = Task.query.filter_by(id=3).first()
+        self.assertIsNone(task3)
 
     # *********** /tasks CRUD endpoints ***********
 
@@ -117,8 +121,8 @@ class TestAPIEndpoints(unittest.TestCase):
 
             new = Task.query.filter_by(name='TEST_TASK').first()
 
-            self.assertEqual(response.status_code, 201)
             self.assertIsNotNone(new)
+            self.assertEqual(response.status_code, 201)
 
     def test_tasks_post_missing_project(self):
         with app.app_context():
@@ -270,7 +274,8 @@ class TestAPIEndpoints(unittest.TestCase):
 
     def test_employees_post_correct(self):
         with app.app_context():
-            new_emp_dict = {'name': 'TEST_EMPLOYEE', 'gender': 'M'}
+            new_emp_dict = {'name': 'TEST_EMPLOYEE', 'gender': 'M',
+                            'start_date': '01-05-2006', 'date_of_birth': '01-01-1992'}
 
             emp3 = Task()
             emp3.from_dict(new_emp_dict)
@@ -280,8 +285,34 @@ class TestAPIEndpoints(unittest.TestCase):
 
             new = Employee.query.filter_by(name='TEST_EMPLOYEE').first()
 
-            self.assertEqual(response.status_code, 201)
             self.assertEqual(response.json, new.to_dict())
+            self.assertEqual(response.status_code, 201)
+
+    def test_employees_post_incorrect_start_date(self):
+        with app.app_context():
+            new_emp_dict = {'name': 'TEST_EMPLOYEE', 'gender': 'M',
+                            'start_date': '2006-31-31'}
+
+            response = self.app.post('/employees', data=json.dumps(new_emp_dict),
+                                     headers={"content-type": "application/json"})
+
+            new = Employee.query.filter_by(name='TEST_EMPLOYEE').first()
+
+            self.assertIsNone(new)
+            self.assertEqual(response.status_code, 400)
+
+    def test_employees_post_incorrect_dob(self):
+        with app.app_context():
+            new_emp_dict = {'name': 'TEST_EMPLOYEE', 'gender': 'M',
+                            'date_of_birth': '2006-31-31'}
+
+            response = self.app.post('/employees', data=json.dumps(new_emp_dict),
+                                     headers={"content-type": "application/json"})
+
+            new = Employee.query.filter_by(name='TEST_EMPLOYEE').first()
+
+            self.assertIsNone(new)
+            self.assertEqual(response.status_code, 400)
 
     def test_employees_post_without_name(self):
         with app.app_context():
@@ -320,6 +351,15 @@ class TestAPIEndpoints(unittest.TestCase):
 
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(e)
+
+    def test_employees_put_incorrect_date(self):
+        with app.app_context():
+            new_dict = {'name': 'test_put', 'date_of_birth': '2006-31-31'}
+
+            response = self.app.put('/employees/1', data=json.dumps(new_dict),
+                                    headers={"content-type": "application/json"})
+
+            self.assertEqual(response.status_code, 400)
 
     def test_employees_delete_correct(self):
         with app.app_context():
@@ -416,18 +456,6 @@ class TestAPIEndpoints(unittest.TestCase):
 
             self.assertEqual(response.status_code, 404)
             self.assertIsNone(t)
-
-    # def test_projects_put_without_id(self):
-    #     with app.app_context():
-    #         new_dict = {'name': 'test_put'}
-    #
-    #         response = self.app.put('/projects', data=json.dumps(new_dict),
-    #                                 headers={"content-type": "application/json"})
-    #
-    #         t = Project.query.filter_by(name='test_put').first()
-    #
-    #         self.assertEqual(response.status_code, 400)
-    #         self.assertIsNone(t)
 
     def test_projects_delete_correct(self):
         with app.app_context():

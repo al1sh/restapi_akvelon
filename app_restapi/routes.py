@@ -1,6 +1,7 @@
 from app_restapi import app, db
 from flask import jsonify, request
-from app_restapi.models import Task, Employee, Project
+from datetime import datetime
+from app_restapi.models import Task, Employee, Project, Gender, Status
 from app_restapi.errors import *
 
 
@@ -33,6 +34,12 @@ def get_post_all_tasks():
                 return not_found("Employee with such ID does not exist")
 
             t.employee = existing_employee
+
+        if 'status' in data:
+            try:
+                status = Status[data["status"]]
+            except Exception as e:
+                return bad_request("incorrect status [open, done]")
 
         t.from_dict(data)
         db.session.add(t)
@@ -93,6 +100,12 @@ def get_put_delete_by_task_id(task_id):
             else:
                 t.employee = existing_employee
 
+        if 'status' in data:
+            try:
+                status = Status[data["status"]]
+            except Exception as e:
+                return bad_request("incorrect status [open, done]")
+
         t.from_dict(data)
         db.session.commit()
 
@@ -118,6 +131,26 @@ def get_employees():
         data = request.get_json() or {}
         if 'name' not in data:
             return bad_request('must include name field')
+
+        if 'start_date' in data:
+            try:
+                start_date = datetime.strptime(data['start_date'], "%d-%m-%Y")
+
+            except Exception as e:
+                return bad_request("incorrect start_date format")
+
+        if 'date_of_birth' in data:
+            try:
+                date_of_birth = datetime.strptime(data['date_of_birth'], "%d-%m-%Y")
+
+            except Exception as e:
+                return bad_request("incorrect date_of_birth format")
+
+        if "gender" in data:
+            try:
+                gender = Gender[data['gender']]
+            except Exception as e:
+                return bad_request('incorrect gender [M/F]')
 
         emp = Employee()
         emp.from_dict(data)
@@ -161,6 +194,26 @@ def get_put_delete_by_employee_id(employee_id):
         selected_employee = Employee.query.filter_by(id=employee_id).first()
         if not selected_employee:
             return not_found("no employee with such ID")
+
+        if 'start_date' in data:
+            try:
+                start_date = datetime.strptime(data['start_date'], "%d-%m-%Y")
+
+            except Exception as e:
+                return bad_request("incorrect start_date format")
+
+        if 'date_of_birth' in data:
+            try:
+                date_of_birth = datetime.strptime(data['date_of_birth'], "%d-%m-%Y")
+
+            except Exception as e:
+                return bad_request("incorrect date_of_birth format")
+
+        if "gender" in data:
+            try:
+                gender = Gender[data['gender']]
+            except Exception as e:
+                return bad_request('incorrect gender [M/F]')
 
         selected_employee.from_dict(data)
         db.session.commit()
@@ -314,6 +367,12 @@ def employee_tasks_by_id(id):
         if not existing_project:
             return not_found("Project with such ID does not exist")
 
+        if 'status' in data:
+            try:
+                status = Status[data["status"]]
+            except Exception as e:
+                return bad_request("incorrect status [open, done]")
+
         t = Task(employee=selected_employee, project=existing_project)
         t.from_dict(data)
 
@@ -381,7 +440,7 @@ def patch_task_done(task_id):
     if not selected_task:
         return not_found("no such task ID")
 
-    selected_task.status = 'done'
+    selected_task.status = Status.done
     db.session.commit()
 
     response = jsonify()

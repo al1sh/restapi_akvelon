@@ -4,13 +4,13 @@ from datetime import datetime
 
 
 class Status(Enum):
-    done = 1
-    open = 0
+    open = 1
+    done = 2
 
 
 class Gender(Enum):
-    F = 0
-    M = 1
+    F = 1
+    M = 2
 
 
 class Task(db.Model):
@@ -47,18 +47,13 @@ class Task(db.Model):
         return data
 
     def from_dict(self, data):
-        try:
-            for field in ['name', 'description']:
-                if field in data:
-                    setattr(self, field, data[field])
+        for field in ['name', 'description']:
+            if field in data:
+                setattr(self, field, data[field])
 
-            if 'status' in data:
-                db_field = Gender.data[field]
-                setattr(self, field, db_field)
-            return True
-
-        except Exception as e:
-            return False
+        if 'status' in data:
+            db_field = Status[data['status']]
+            setattr(self, 'status', db_field)
 
 
 class Project(db.Model):
@@ -112,24 +107,18 @@ class Employee(db.Model):
         return data
 
     def from_dict(self, data):
-        try:
-            for field in ['name', 'gender', 'date_of_birth', 'start_date']:
-                if field in data:
-                    setattr(self, field, data[field])
+        for field in ['name']:
+            if field in data:
+                setattr(self, field, data[field])
 
-            for field in ['date_of_birth', 'start_date']:
-                if field in data:
-                    db_field = datetime.strptime(data[field], "%d-%m-%Y")
-                    setattr(self, field, db_field)
-
-            if "gender" in data:
-                db_field = Gender(data['gender']).name
+        for field in ['date_of_birth', 'start_date']:
+            if field in data:
+                db_field = datetime.strptime(data[field], "%d-%m-%Y")
                 setattr(self, field, db_field)
 
-            return True
-
-        except Exception as e:
-            return False
+        if "gender" in data:
+            db_field = Gender[data['gender']]
+            setattr(self, "gender", db_field)
 
     def __repr__(self):
         return '<Employee {}>'.format(self.name)
