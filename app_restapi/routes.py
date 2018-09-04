@@ -104,7 +104,7 @@ def get_put_delete_by_task_id(task_id):
             try:
                 status = Status[data["status"]]
             except Exception as e:
-                return bad_request("incorrect status [open, done]")
+                return bad_request("incorrect status [open/done]")
 
         t.from_dict(data)
         db.session.commit()

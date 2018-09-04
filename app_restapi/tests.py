@@ -1,11 +1,11 @@
+import unittest
+import json
 import sys
 sys.path.append("../")
 
 from app_restapi import app, db
 from app_restapi.models import Task, Employee, Project, Status, Gender
 from datetime import datetime
-import unittest
-import json
 
 
 class TestAPIEndpoints(unittest.TestCase):
@@ -33,16 +33,10 @@ class TestAPIEndpoints(unittest.TestCase):
         self.task2 = Task(name='task2', description='task2_test', status=Status.open,
                           project=self.project2, employee=self.employee2)
 
-        # db.session.add_all([self.employee1, self.employee2])
-        # db.session.add_all([self.project1, self.project2])
-        # db.session.add_all([self.task1, self.task2])
+        db.session.add_all([self.employee1, self.employee2])
+        db.session.add_all([self.project1, self.project2])
+        db.session.add_all([self.task1, self.task2])
 
-        db.session.add(self.employee1)
-        db.session.add(self.employee2)
-        db.session.add(self.project1)
-        db.session.add(self.project2)
-        db.session.add(self.task1)
-        db.session.add(self.task2)
         db.session.commit()
 
     def tearDown(self):
@@ -234,7 +228,6 @@ class TestAPIEndpoints(unittest.TestCase):
             self.assertEqual(response.status_code, 204)
             t = Task.query.filter_by(id=1).first()
             self.assertIsNone(t)
-
 
     def test_delete_tasks_nonexistent_id(self):
         with app.app_context():
